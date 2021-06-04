@@ -14,13 +14,13 @@ import os
 import cv2
 import pytesseract
 import numpy as np
+import re
 
 #directories and path
 dir = os.getcwd() #working directory
 ocr_tesseract_path = "C://Users/Jack/AppData/Local/Programs/Tesseract-OCR/tesseract.exe"
 img_dir = dir + "\\Resources\\" #image/resource directory
-#path = img_dir + "Sudoku_0.jpg"
-path = img_dir + "Sudoku_5.png"
+path = img_dir + "Sudoku_1.jpg"
 
 #print(os.listdir(img_dir)) #printing sudoku files
 
@@ -31,7 +31,6 @@ imgOut = img.copy() #creating a copy to draw on
 #converting image to greyscale and adding blur
 imgGrey = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 imgBlur = cv2.GaussianBlur(imgGrey,(7,7),1)
-#imgBlur = imgGrey
 
 #finding edges with Canny function
 imgCanny = cv2.Canny(imgBlur,100,100)
@@ -121,8 +120,8 @@ corners = cv2.approxPolyDP(contour, 0.02*perimeter, True)
 ptsOld = np.float32([corners[0],corners[3],corners[1],corners[2]])
 
 #height and width of exported sudoku
-widthNew = 512
-heightNew = 512
+widthNew = 1024
+heightNew = 1024
 
 # points to transform to on new image in the following order:
 # 1.top left
@@ -137,11 +136,8 @@ matrix = cv2.getPerspectiveTransform(ptsOld, ptsNew)
 # transforming image (performing warp)
 imgWarp = cv2.warpPerspective(img, matrix, (widthNew, heightNew))
 
-#subdividing and extracting digits in cells
-
 #pointing to ocr tessearact instasll
 pytesseract.pytesseract.tesseract_cmd = ocr_tesseract_path
-
 
 #calculating dimensions of cells
 widthCell = round(widthNew/9)
@@ -156,8 +152,14 @@ sudoku = np.zeros(shape=(9,9),dtype=int)
 #outputbase digits means we are looking for digits
 conf = r"--oem 3 --psm 10 outputbase digits"
 
+#regex patterns for find and replacing
+#reg_xoc = re.compile(r"\x0c")
+reg_xoc = re.compile("\\\\x[0-9]c") #regex to find \x0c or any digit replacing the 0
+reg_n = re.compile("[^0-9]") #regex to replace anything apart from numbers
+
 #reading from left to right
 #looping through cols
+
 for col in range(0,9):
 
     #looping throuhg rows
@@ -179,21 +181,34 @@ for col in range(0,9):
 
         digit = pytesseract.image_to_string(imgRGB,config=conf)  #detect & extract digit
 
+        #replacing whitespace & string characters
+        digit = reg_xoc.sub("",digit) #replacing \x0c or similar
+
+        digit = reg_n.sub("",digit) #replacing any non number digits
+
         #TODO sub \x0c and \n from digit and then make sure only alphanumeric values are present
 
-        #storing extracted digit
-        #sudoku[row][col] = int(digit)
+        #storing extracted digit or zeroes
 
-        print(digit)
-        #print(type(digit))
+        if digit == "":
 
-        #cv2.imshow("Grid cell",imgCell)
-        #cv2.waitKey(1000)
+            sudoku[row][col] = int(0) #if no character is stored a zero is stored
+
+        else:
+            print(digit)
+            sudoku[col][row] = int(digit) #if a digit is found the digit is stored
+
+        #cv2.imshow("Grid cell",imgCell) #printing individual cell
+        #cv2.waitKey(1000) #1 second delay
+        #print ("col:",col,"row:",row) #tracking progress
 
 #outputting image
 cv2.imshow("Detected Sudoku",imgOut)
 cv2.imshow("Isolated Sudoku", imgWarp)
 
-cv2.waitKey(0) #indefinite delay
+#printing extracted sudoku
+print("Extracted sudoku:")
+print(sudoku)
 
+cv2.waitKey(0) #indefinite delay
 print("Code run successfully")
